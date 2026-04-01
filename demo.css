@@ -88,7 +88,7 @@ button {
 }
 
 .display-panel {
-  margin-top: 22px;
+  margin-top: 20px;
   padding: 18px 20px;
   border: 1px solid var(--line);
   border-radius: 24px;
@@ -100,6 +100,8 @@ button {
   color: var(--muted);
   font-size: 0.88rem;
   letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .display-value {
@@ -110,13 +112,17 @@ button {
   line-height: 1;
   text-align: right;
   letter-spacing: -0.05em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
 }
 
 .calculator-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
 .history-panel {
@@ -137,6 +143,7 @@ button {
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .history-list {
@@ -155,6 +162,8 @@ button {
   font-family: var(--mono);
   font-size: 0.86rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .calc-button {
@@ -175,6 +184,12 @@ button {
 .calc-button:hover {
   transform: translateY(-1px);
   filter: brightness(1.02);
+}
+
+.calc-button:focus-visible {
+  outline: 3px solid rgba(234, 88, 12, 0.28);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92);
 }
 
 .calc-button:active {
@@ -205,8 +220,31 @@ button {
     border-radius: 26px;
   }
 
+  .display-panel {
+    padding: 16px 16px 18px;
+    border-radius: 20px;
+  }
+
+  .display-value {
+    font-size: clamp(2.1rem, 12vw, 3.2rem);
+  }
+
   .calculator-grid {
     gap: 10px;
+  }
+
+  .history-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+  }
+
+  .history-title {
+    margin-bottom: 8px;
+  }
+
+  .history-item {
+    padding: 9px 11px;
+    font-size: 0.82rem;
   }
 
   .calc-button {
