@@ -24,20 +24,26 @@ export class FunctionComponent {
     this.container = container;
   }
 
-  // 최초 렌더링을 수행한다.
-  // renderFn으로 VDOM을 만든 뒤 기존 mountVNode를 이용해 실제 DOM에 한 번 그린다.
-  mount(): void {
+  // hookIndex와 currentComponent를 매 렌더 시작 시점에 맞춰 초기화한 뒤
+  // renderFn을 실행해 다음 VDOM을 만든다.
+  private renderVNode(): VNode {
     this.hookIndex = 0;
     currentComponent = this;
 
     try {
-      const nextVNode = this.renderFn();
-
-      mountVNode(this.container, nextVNode);
-      this.prevVNode = nextVNode;
+      return this.renderFn();
     } finally {
       currentComponent = null;
     }
+  }
+
+  // 최초 렌더링을 수행한다.
+  // renderFn으로 VDOM을 만든 뒤 기존 mountVNode를 이용해 실제 DOM에 한 번 그린다.
+  mount(): void {
+    const nextVNode = this.renderVNode();
+
+    mountVNode(this.container, nextVNode);
+    this.prevVNode = nextVNode;
   }
 
   // 상태 변경 이후 재렌더링을 수행한다.
@@ -49,22 +55,38 @@ export class FunctionComponent {
       return;
     }
 
-    this.hookIndex = 0;
-    currentComponent = this;
+    const nextVNode = this.renderVNode();
+    const patches = diffVNode(this.prevVNode, nextVNode);
 
-    try {
-      const nextVNode = this.renderFn();
-      const patches = diffVNode(this.prevVNode, nextVNode);
-
-      applyPatches(this.container, patches);
-      this.prevVNode = nextVNode;
-    } finally {
-      currentComponent = null;
-    }
+    applyPatches(this.container, patches);
+    this.prevVNode = nextVNode;
   }
 }
 
 // 다음 단계 Hook 구현에서 현재 렌더 중인 루트 컴포넌트를 읽기 위한 접근 함수다.
 export function getCurrentFunctionComponent(): FunctionComponent | null {
   return currentComponent;
+}
+
+// hook 호출 순서에 따라 현재 컴포넌트의 다음 슬롯 번호를 하나 소비한다.
+// 렌더 밖에서는 Hook을 쓸 수 없으므로 명확한 에러를 던진다.
+export function consumeHookSlot(): {
+  component: FunctionComponent;
+  index: number;
+} {
+  const component = getCurrentFunctionComponent();
+
+  if (component === null) {
+    throw new Error(
+      'Hooks can only be used while rendering the root FunctionComponent.',
+    );
+  }
+
+  const index = component.hookIndex;
+  component.hookIndex += 1;
+
+  return {
+    component,
+    index,
+  };
 }
