@@ -90,3 +90,35 @@ export function consumeHookSlot(): {
     index,
   };
 }
+
+type StateHook<T> = {
+  value: T;
+  setState: (nextState: T) => void;
+};
+
+// 가장 단순한 형태의 useState다.
+// 슬롯이 비어 있으면 초기 상태와 고정 setter를 만들고, 이후 렌더에서는 같은 슬롯을 재사용한다.
+export function useState<T>(initialState: T): [T, (nextState: T) => void] {
+  const { component, index } = consumeHookSlot();
+  let hook = component.hooks[index] as StateHook<T> | undefined;
+
+  if (hook === undefined) {
+    hook = {
+      value: initialState,
+      setState: (nextState: T) => {
+        const currentHook = component.hooks[index] as StateHook<T> | undefined;
+
+        if (currentHook === undefined) {
+          throw new Error(`Missing state hook at index ${index}.`);
+        }
+
+        currentHook.value = nextState;
+        component.update();
+      },
+    };
+
+    component.hooks[index] = hook;
+  }
+
+  return [hook.value, hook.setState];
+}
