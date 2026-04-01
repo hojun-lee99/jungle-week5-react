@@ -4,10 +4,53 @@ import type { VNode } from './vdom/node.js';
 import { createTextNode } from './vdom/text-node.js';
 
 const APP_ROOT_ID = 'app';
-const DIGIT_BUTTONS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0'] as const;
+type Operator = '+' | '-' | '*' | '/' | null;
 
-let latestDisplay = '0';
-let latestSetDisplay: ((nextDisplay: string) => void) | null = null;
+type CalculatorState = {
+  display: string;
+  storedValue: number | null;
+  operator: Operator;
+  waitingForNextValue: boolean;
+};
+
+type ButtonSpec = {
+  label: string;
+  action: 'digit' | 'operator';
+  value: string;
+  className?: string;
+};
+
+const INITIAL_CALCULATOR_STATE: CalculatorState = {
+  display: '0',
+  storedValue: null,
+  operator: null,
+  waitingForNextValue: false,
+};
+
+const BUTTON_LAYOUT: ButtonSpec[] = [
+  { label: '7', action: 'digit', value: '7' },
+  { label: '8', action: 'digit', value: '8' },
+  { label: '9', action: 'digit', value: '9' },
+  { label: '/', action: 'operator', value: '/', className: 'calc-button calc-button-operator' },
+  { label: '4', action: 'digit', value: '4' },
+  { label: '5', action: 'digit', value: '5' },
+  { label: '6', action: 'digit', value: '6' },
+  { label: '*', action: 'operator', value: '*', className: 'calc-button calc-button-operator' },
+  { label: '1', action: 'digit', value: '1' },
+  { label: '2', action: 'digit', value: '2' },
+  { label: '3', action: 'digit', value: '3' },
+  { label: '-', action: 'operator', value: '-', className: 'calc-button calc-button-operator' },
+  {
+    label: '0',
+    action: 'digit',
+    value: '0',
+    className: 'calc-button calculator-button-zero',
+  },
+  { label: '+', action: 'operator', value: '+', className: 'calc-button calc-button-operator' },
+];
+
+let latestState: CalculatorState = INITIAL_CALCULATOR_STATE;
+let latestSetState: ((nextState: CalculatorState) => void) | null = null;
 const mountedRoots = new WeakSet<Element>();
 
 if (typeof document !== 'undefined') {
@@ -26,6 +69,45 @@ export function appendDigitToDisplay(display: string, digit: string): string {
   }
 
   return `${display}${digit}`;
+}
+
+export function applyDigitToState(
+  state: CalculatorState,
+  digit: string,
+): CalculatorState {
+  if (state.waitingForNextValue) {
+    return {
+      ...state,
+      display: digit,
+      waitingForNextValue: false,
+    };
+  }
+
+  return {
+    ...state,
+    display: appendDigitToDisplay(state.display, digit),
+    waitingForNextValue: false,
+  };
+}
+
+export function applyOperatorToState(
+  state: CalculatorState,
+  operator: Exclude<Operator, null>,
+): CalculatorState {
+  if (state.storedValue !== null && state.waitingForNextValue) {
+    return {
+      ...state,
+      operator,
+      waitingForNextValue: true,
+    };
+  }
+
+  return {
+    ...state,
+    storedValue: Number(state.display),
+    operator,
+    waitingForNextValue: true,
+  };
 }
 
 export function setupDemo(): void {
@@ -50,26 +132,34 @@ function handleRootClick(event: Event): void {
     return;
   }
 
-  const button = target.closest('button[data-action="digit"]');
+  const button = target.closest('button[data-action]');
 
-  if (button === null || latestSetDisplay === null) {
+  if (button === null || latestSetState === null) {
     return;
   }
 
+  const action = button.getAttribute('data-action');
   const digit = button.getAttribute('data-value') ?? '';
 
   if (digit === '') {
     return;
   }
 
-  latestSetDisplay(appendDigitToDisplay(latestDisplay, digit));
+  if (action === 'digit') {
+    latestSetState(applyDigitToState(latestState, digit));
+    return;
+  }
+
+  if (action === 'operator' && isOperator(digit)) {
+    latestSetState(applyOperatorToState(latestState, digit));
+  }
 }
 
 function App(): VNode {
-  const [display, setDisplay] = useState('0');
+  const [state, setState] = useState<CalculatorState>(INITIAL_CALCULATOR_STATE);
 
-  latestDisplay = display;
-  latestSetDisplay = setDisplay;
+  latestState = state;
+  latestSetState = setState;
 
   return createElementNode('main', {
     props: { class: 'calculator-app' },
@@ -86,13 +176,13 @@ function App(): VNode {
               }),
               createElementNode('h1', {
                 props: { class: 'title' },
-                children: [createTextNode('Digit Input Demo')],
+                children: [createTextNode('Operator Selection Demo')],
               }),
               createElementNode('p', {
                 props: { class: 'description' },
                 children: [
                   createTextNode(
-                    '숫자 버튼 클릭으로 state와 화면이 함께 바뀌는 단계를 확인합니다.',
+                    '연산자를 선택하고 다음 숫자 입력을 준비하는 단계를 확인합니다.',
                   ),
                 ],
               }),
@@ -102,26 +192,26 @@ function App(): VNode {
             props: { class: 'display-panel' },
             children: [
               createElementNode('p', {
-                props: { class: 'display-expression' },
-                children: [createTextNode('App only + useState')],
+                props: { class: 'display-expression', 'data-role': 'expression' },
+                children: [createTextNode(getExpression(state))],
               }),
               createElementNode('p', {
                 props: { class: 'display-value', 'data-role': 'display' },
-                children: [createTextNode(display)],
+                children: [createTextNode(state.display)],
               }),
             ],
           }),
           createElementNode('section', {
-            props: { class: 'digit-grid' },
-            children: DIGIT_BUTTONS.map((digit) =>
+            props: { class: 'calculator-grid' },
+            children: BUTTON_LAYOUT.map((button) =>
               createElementNode('button', {
                 props: {
                   type: 'button',
-                  class: digit === '0' ? 'calc-button digit-button-zero' : 'calc-button',
-                  'data-action': 'digit',
-                  'data-value': digit,
+                  class: button.className ?? 'calc-button',
+                  'data-action': button.action,
+                  'data-value': button.value,
                 },
-                children: [createTextNode(digit)],
+                children: [createTextNode(button.label)],
               }),
             ),
           }),
@@ -129,4 +219,16 @@ function App(): VNode {
       }),
     ],
   });
+}
+
+function isOperator(value: string): value is Exclude<Operator, null> {
+  return value === '+' || value === '-' || value === '*' || value === '/';
+}
+
+function getExpression(state: CalculatorState): string {
+  if (state.storedValue === null || state.operator === null) {
+    return 'Ready';
+  }
+
+  return `${state.storedValue} ${state.operator}`;
 }
