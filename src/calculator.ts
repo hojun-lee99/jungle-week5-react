@@ -19,6 +19,11 @@ export type ButtonSpec = {
   className?: string;
 };
 
+export type HistoryEntry = {
+  expression: string;
+  result: string;
+};
+
 export const INITIAL_CALCULATOR_STATE: CalculatorState = {
   display: '0',
   storedValue: null,
@@ -52,6 +57,8 @@ export const BUTTON_LAYOUT: ButtonSpec[] = [
 
 let latestState: CalculatorState = INITIAL_CALCULATOR_STATE;
 let latestSetState: ((nextState: CalculatorState) => void) | null = null;
+let latestHistory: HistoryEntry[] = [];
+let latestSetHistory: ((nextHistory: HistoryEntry[]) => void) | null = null;
 
 export function appendDigitToDisplay(display: string, digit: string): string {
   if (display === '0') {
@@ -138,6 +145,24 @@ export function applyClearToState(): CalculatorState {
   return INITIAL_CALCULATOR_STATE;
 }
 
+function canRecordHistory(state: CalculatorState): boolean {
+  return state.storedValue !== null && state.operator !== null;
+}
+
+function createHistoryEntry(
+  state: CalculatorState,
+  result: string,
+): HistoryEntry {
+  return {
+    expression: getExpression(state),
+    result,
+  };
+}
+
+function formatHistoryEntry(entry: HistoryEntry): string {
+  return `${entry.expression} = ${entry.result}`;
+}
+
 export function handleCalculatorClick(event: Event): void {
   const target = event.target;
 
@@ -160,7 +185,17 @@ export function handleCalculatorClick(event: Event): void {
   }
 
   if (action === 'equal') {
-    latestSetState(applyEqualToState(latestState));
+    const nextState = applyEqualToState(latestState);
+    const nextHistoryEntry = canRecordHistory(latestState)
+      ? createHistoryEntry(latestState, nextState.display)
+      : null;
+
+    latestSetState(nextState);
+
+    if (nextHistoryEntry !== null && latestSetHistory !== null) {
+      latestSetHistory([...latestHistory, nextHistoryEntry]);
+    }
+
     return;
   }
 
@@ -180,12 +215,11 @@ export function handleCalculatorClick(event: Event): void {
 
 export function App(): VNode {
   const [state, setState] = useState<CalculatorState>(INITIAL_CALCULATOR_STATE);
-  const expression = useMemo(
-    () => getExpression(state),
-    [state.storedValue, state.operator, state.display],
-  );
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const expression = getExpression(state);
   const display = state.display;
   const buttons = BUTTON_LAYOUT;
+  const recentHistory = useMemo(() => history.slice(-5).reverse(), [history]);
 
   useEffect(() => {
     document.title = `Calculator: ${state.display}`;
@@ -193,6 +227,8 @@ export function App(): VNode {
 
   latestState = state;
   latestSetState = setState;
+  latestHistory = history;
+  latestSetHistory = setHistory;
 
   return createElementNode('main', {
     props: { class: 'calculator-app' },
@@ -223,6 +259,7 @@ export function App(): VNode {
           }),
           Display({ expression, display }),
           ButtonGrid({ buttons }),
+          HistoryList({ entries: recentHistory }),
         ],
       }),
     ],
@@ -249,6 +286,35 @@ export function ButtonGrid(props: { buttons: ButtonSpec[] }): VNode {
   return createElementNode('section', {
     props: { class: 'calculator-grid' },
     children: props.buttons.map((button) => CalcButton(button)),
+  });
+}
+
+export function HistoryList(props: { entries: HistoryEntry[] }): VNode {
+  const content =
+    props.entries.length === 0
+      ? createElementNode('p', {
+          props: { class: 'history-empty', 'data-role': 'history-empty' },
+          children: [createTextNode('아직 계산 내역이 없습니다.')],
+        })
+      : createElementNode('ol', {
+          props: { class: 'history-list', 'data-role': 'history-list' },
+          children: props.entries.map((entry) =>
+            createElementNode('li', {
+              props: { class: 'history-item', 'data-role': 'history-entry' },
+              children: [createTextNode(formatHistoryEntry(entry))],
+            }),
+          ),
+        });
+
+  return createElementNode('section', {
+    props: { class: 'history-panel', 'data-role': 'history-panel' },
+    children: [
+      createElementNode('h2', {
+        props: { class: 'history-title' },
+        children: [createTextNode('최근 5개 계산')],
+      }),
+      content,
+    ],
   });
 }
 

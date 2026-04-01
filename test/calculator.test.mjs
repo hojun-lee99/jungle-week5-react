@@ -14,6 +14,7 @@ import {
   applyClearToState,
   Display,
   ButtonGrid,
+  HistoryList,
   CalcButton,
   getExpression,
 } from '../dist/calculator.js';
@@ -164,6 +165,43 @@ test('Display는 expression과 display를 표시하는 VNode를 만든다', () =
   assert.equal(display.props['data-role'], 'display');
   assert.equal(isTextNode(display.children[0]), true);
   assert.equal(display.children[0].value, '7');
+});
+
+test('HistoryList는 최근 계산 내역을 최신순으로 렌더링한다', () => {
+  const vnode = HistoryList({
+    entries: [
+      { expression: '3 * 4', result: '12' },
+      { expression: '12 + 7', result: '19' },
+    ],
+  });
+
+  assert.equal(isElementNode(vnode), true);
+  assert.equal(vnode.tag, 'section');
+  assert.equal(vnode.props['data-role'], 'history-panel');
+
+  const title = vnode.children[0];
+  const list = vnode.children[1];
+
+  assert.equal(isElementNode(title), true);
+  assert.equal(isTextNode(title.children[0]), true);
+  assert.equal(title.children[0].value, '최근 5개 계산');
+
+  assert.equal(isElementNode(list), true);
+  assert.equal(list.tag, 'ol');
+  assert.equal(list.children.length, 2);
+  assert.equal(isElementNode(list.children[0]), true);
+  assert.equal(isTextNode(list.children[0].children[0]), true);
+  assert.equal(list.children[0].children[0].value, '3 * 4 = 12');
+});
+
+test('HistoryList는 내역이 없으면 안내 문구를 표시한다', () => {
+  const vnode = HistoryList({ entries: [] });
+  const emptyState = vnode.children[1];
+
+  assert.equal(isElementNode(emptyState), true);
+  assert.equal(emptyState.props['data-role'], 'history-empty');
+  assert.equal(isTextNode(emptyState.children[0]), true);
+  assert.equal(emptyState.children[0].value, '아직 계산 내역이 없습니다.');
 });
 
 test('CalcButton는 버튼 속성과 라벨을 가진 VNode를 만든다', () => {
