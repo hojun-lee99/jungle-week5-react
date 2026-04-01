@@ -255,8 +255,17 @@ const expression = useMemo(() => {
     return 'Ready';
   }
 
+  if (state.waitingForNextValue) {
+    return `${state.storedValue} ${state.operator}`;
+  }
+
   return `${state.storedValue} ${state.operator} ${state.display}`;
-}, [state.storedValue, state.operator, state.display]);
+}, [
+  state.storedValue,
+  state.operator,
+  state.display,
+  state.waitingForNextValue,
+]);
 ```
 
 ## 파일 분리 추천

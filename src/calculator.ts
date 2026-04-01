@@ -458,5 +458,9 @@ export function getExpression(state: CalculatorState): string {
     return 'Ready';
   }
 
+  if (state.waitingForNextValue) {
+    return `${state.storedValue} ${state.operator}`;
+  }
+
   return `${state.storedValue} ${state.operator} ${state.display}`;
 }

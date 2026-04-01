@@ -118,7 +118,19 @@ test('applyClearToState는 전체 상태를 초기화한다', () => {
   });
 });
 
-test('getExpression은 저장된 값과 현재 display를 함께 표시한다', () => {
+test('getExpression은 다음 숫자를 기다릴 때 첫 번째 숫자와 연산자만 표시한다', () => {
+  assert.equal(
+    getExpression({
+      display: '12',
+      storedValue: 12,
+      operator: '+',
+      waitingForNextValue: true,
+    }),
+    '12 +',
+  );
+});
+
+test('getExpression은 두 번째 숫자를 입력 중이면 현재 display까지 표시한다', () => {
   assert.equal(
     getExpression({
       display: '7',
