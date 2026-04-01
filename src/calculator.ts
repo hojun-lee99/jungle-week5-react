@@ -24,12 +24,20 @@ export type HistoryEntry = {
   result: string;
 };
 
+type PersistedCalculatorSnapshot = {
+  display: string;
+  history: HistoryEntry[];
+};
+
 export const INITIAL_CALCULATOR_STATE: CalculatorState = {
   display: '0',
   storedValue: null,
   operator: null,
   waitingForNextValue: false,
 };
+
+const CALCULATOR_STORAGE_KEY = 'mini-react:calculator';
+const MAX_HISTORY_ENTRIES = 5;
 
 export const BUTTON_LAYOUT: ButtonSpec[] = [
   { label: 'AC', action: 'clear', value: 'AC', className: 'calc-button calc-button-muted' },
@@ -59,6 +67,102 @@ let latestState: CalculatorState = INITIAL_CALCULATOR_STATE;
 let latestSetState: ((nextState: CalculatorState) => void) | null = null;
 let latestHistory: HistoryEntry[] = [];
 let latestSetHistory: ((nextHistory: HistoryEntry[]) => void) | null = null;
+
+function createDefaultPersistedCalculatorSnapshot(): PersistedCalculatorSnapshot {
+  return {
+    display: INITIAL_CALCULATOR_STATE.display,
+    history: [],
+  };
+}
+
+function isHistoryEntry(value: unknown): value is HistoryEntry {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const entry = value as Record<string, unknown>;
+
+  return (
+    typeof entry.expression === 'string' && typeof entry.result === 'string'
+  );
+}
+
+function getStorage(): Storage | null {
+  if (typeof globalThis.localStorage === 'undefined') {
+    return null;
+  }
+
+  return globalThis.localStorage;
+}
+
+function readPersistedCalculatorSnapshot(): PersistedCalculatorSnapshot {
+  const storage = getStorage();
+
+  if (storage === null) {
+    return createDefaultPersistedCalculatorSnapshot();
+  }
+
+  try {
+    const rawValue = storage.getItem(CALCULATOR_STORAGE_KEY);
+
+    if (rawValue === null) {
+      return createDefaultPersistedCalculatorSnapshot();
+    }
+
+    const parsedValue = JSON.parse(rawValue) as {
+      display?: unknown;
+      history?: unknown;
+    };
+
+    if (
+      typeof parsedValue !== 'object' ||
+      parsedValue === null ||
+      typeof parsedValue.display !== 'string' ||
+      !Array.isArray(parsedValue.history) ||
+      !parsedValue.history.every(isHistoryEntry)
+    ) {
+      return createDefaultPersistedCalculatorSnapshot();
+    }
+
+    return {
+      display: parsedValue.display,
+      history: parsedValue.history.slice(-MAX_HISTORY_ENTRIES),
+    };
+  } catch {
+    return createDefaultPersistedCalculatorSnapshot();
+  }
+}
+
+function writePersistedCalculatorSnapshot(
+  display: string,
+  history: HistoryEntry[],
+): void {
+  const storage = getStorage();
+
+  if (storage === null) {
+    return;
+  }
+
+  try {
+    storage.setItem(
+      CALCULATOR_STORAGE_KEY,
+      JSON.stringify({
+        display,
+        history: history.slice(-MAX_HISTORY_ENTRIES),
+      } satisfies PersistedCalculatorSnapshot),
+    );
+  } catch {
+    // localStorage 접근 실패는 UI를 막지 않도록 무시한다.
+  }
+}
+
+function createRestoredCalculatorState(display: string): CalculatorState {
+  return {
+    ...INITIAL_CALCULATOR_STATE,
+    display,
+    waitingForNextValue: display !== INITIAL_CALCULATOR_STATE.display,
+  };
+}
 
 export function appendDigitToDisplay(display: string, digit: string): string {
   if (display === '0') {
@@ -214,16 +318,31 @@ export function handleCalculatorClick(event: Event): void {
 }
 
 export function App(): VNode {
-  const [state, setState] = useState<CalculatorState>(INITIAL_CALCULATOR_STATE);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const persistedSnapshot = useMemo(
+    () => readPersistedCalculatorSnapshot(),
+    [],
+  );
+  const [state, setState] = useState<CalculatorState>(
+    createRestoredCalculatorState(persistedSnapshot.display),
+  );
+  const [history, setHistory] = useState<HistoryEntry[]>(
+    persistedSnapshot.history,
+  );
   const expression = getExpression(state);
   const display = state.display;
   const buttons = BUTTON_LAYOUT;
-  const recentHistory = useMemo(() => history.slice(-5).reverse(), [history]);
+  const recentHistory = useMemo(
+    () => history.slice(-MAX_HISTORY_ENTRIES).reverse(),
+    [history],
+  );
 
   useEffect(() => {
     document.title = `Calculator: ${state.display}`;
   }, [state.display]);
+
+  useEffect(() => {
+    writePersistedCalculatorSnapshot(state.display, history);
+  }, [history, state.display]);
 
   latestState = state;
   latestSetState = setState;
