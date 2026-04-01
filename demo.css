@@ -154,7 +154,7 @@ button {
 }
 
 .calculator-button-zero {
-  grid-column: span 3;
+  grid-column: span 2;
 }
 
 @media (max-width: 520px) {

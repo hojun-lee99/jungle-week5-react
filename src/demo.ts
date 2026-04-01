@@ -15,7 +15,7 @@ type CalculatorState = {
 
 type ButtonSpec = {
   label: string;
-  action: 'digit' | 'operator';
+  action: 'digit' | 'operator' | 'equal' | 'clear';
   value: string;
   className?: string;
 };
@@ -28,6 +28,7 @@ const INITIAL_CALCULATOR_STATE: CalculatorState = {
 };
 
 const BUTTON_LAYOUT: ButtonSpec[] = [
+  { label: 'AC', action: 'clear', value: 'AC', className: 'calc-button calc-button-muted' },
   { label: '7', action: 'digit', value: '7' },
   { label: '8', action: 'digit', value: '8' },
   { label: '9', action: 'digit', value: '9' },
@@ -46,6 +47,7 @@ const BUTTON_LAYOUT: ButtonSpec[] = [
     value: '0',
     className: 'calc-button calculator-button-zero',
   },
+  { label: '=', action: 'equal', value: '=', className: 'calc-button calc-button-operator' },
   { label: '+', action: 'operator', value: '+', className: 'calc-button calc-button-operator' },
 ];
 
@@ -110,6 +112,44 @@ export function applyOperatorToState(
   };
 }
 
+export function calculateBinaryResult(
+  left: number,
+  operator: Exclude<Operator, null>,
+  right: number,
+): string {
+  switch (operator) {
+    case '+':
+      return String(left + right);
+    case '-':
+      return String(left - right);
+    case '*':
+      return String(left * right);
+    case '/':
+      return right === 0 ? '0' : String(left / right);
+  }
+}
+
+export function applyEqualToState(state: CalculatorState): CalculatorState {
+  if (state.storedValue === null || state.operator === null) {
+    return state;
+  }
+
+  return {
+    display: calculateBinaryResult(
+      state.storedValue,
+      state.operator,
+      Number(state.display),
+    ),
+    storedValue: null,
+    operator: null,
+    waitingForNextValue: true,
+  };
+}
+
+export function applyClearToState(): CalculatorState {
+  return INITIAL_CALCULATOR_STATE;
+}
+
 export function setupDemo(): void {
   const root = document.getElementById(APP_ROOT_ID);
 
@@ -139,19 +179,29 @@ function handleRootClick(event: Event): void {
   }
 
   const action = button.getAttribute('data-action');
-  const digit = button.getAttribute('data-value') ?? '';
+  const value = button.getAttribute('data-value') ?? '';
 
-  if (digit === '') {
+  if (action === 'clear') {
+    latestSetState(applyClearToState());
+    return;
+  }
+
+  if (action === 'equal') {
+    latestSetState(applyEqualToState(latestState));
+    return;
+  }
+
+  if (value === '') {
     return;
   }
 
   if (action === 'digit') {
-    latestSetState(applyDigitToState(latestState, digit));
+    latestSetState(applyDigitToState(latestState, value));
     return;
   }
 
-  if (action === 'operator' && isOperator(digit)) {
-    latestSetState(applyOperatorToState(latestState, digit));
+  if (action === 'operator' && isOperator(value)) {
+    latestSetState(applyOperatorToState(latestState, value));
   }
 }
 
@@ -176,13 +226,13 @@ function App(): VNode {
               }),
               createElementNode('h1', {
                 props: { class: 'title' },
-                children: [createTextNode('Operator Selection Demo')],
+                children: [createTextNode('Calculator Result Demo')],
               }),
               createElementNode('p', {
                 props: { class: 'description' },
                 children: [
                   createTextNode(
-                    '연산자를 선택하고 다음 숫자 입력을 준비하는 단계를 확인합니다.',
+                    '사칙연산 결과와 AC 초기화까지 동작하는 단계를 확인합니다.',
                   ),
                 ],
               }),
