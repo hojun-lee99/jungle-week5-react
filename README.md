@@ -3,12 +3,6 @@
 `mini-react`는 React의 핵심 개념을 작은 규모로 직접 구현해 보는 프로젝트입니다.
 Virtual DOM 생성, DOM -> VDOM 변환, Diff 알고리즘, 그리고 간단한 함수형 컴포넌트 런타임을 직접 구성합니다.
 
-## 프로젝트 목표
-
-- 브라우저 DOM 정보를 읽어 Virtual DOM으로 변환합니다.
-- 두 Virtual DOM을 비교해 변경된 부분만 찾아내는 Diff 알고리즘을 구현합니다.
-- 계산기 데모를 통해 상태 변경, 재렌더링, patch 적용 흐름을 확인합니다.
-
 ## main 브랜치 기준 핵심 파일
 
 ### `src/calculator.ts`
@@ -37,6 +31,12 @@ flowchart TD
   ButtonGrid --> CalcButton
 ```
 
+#### Hook 사용 위치
+
+- `useState`는 `state / setState`로 계산기 상태를 관리하고, `history / setHistory`로 최근 계산 내역을 관리합니다.
+- `useMemo`는 `persistedSnapshot` 초기값을 한 번 읽어 복원하고, `recentHistory`를 `history`에서 파생해 최근 5개를 역순으로 만듭니다.
+- `useEffect`는 `document.title`을 `state.display`와 동기화하고, `display`와 `history`를 `localStorage`에 저장합니다.
+
 즉, `calculator.ts`는 "무엇을 보여줄지"와 "버튼을 눌렀을 때 상태가 어떻게 바뀌는지"를 담당합니다.
 
 ### `src/demo.ts`
@@ -64,16 +64,29 @@ flowchart TD
 
 ## 세 파일의 연결 흐름
 
+```mermaid
+flowchart LR
+  Demo["src/demo.ts<br/>브라우저 진입점"]
+  Runtime["src/runtime.ts<br/>FunctionComponent / Hooks / diff·patch 흐름 관리"]
+  Calculator["src/calculator.ts<br/>App / handleCalculatorClick"]
+
+  Demo -->|setupDemo에서 마운트 시작| Runtime
+  Demo -->|App와 클릭 핸들러 연결| Calculator
+  Runtime -->|App 실행과 재렌더링 호출| Calculator
+  Calculator -->|Hook 사용| Runtime
+```
+
 1. `demo.ts`가 브라우저의 `#app` 루트에서 계산기 앱을 시작합니다.
 2. `runtime.ts`의 `FunctionComponent`가 `calculator.ts`의 `App`을 실행해 Virtual DOM을 생성합니다.
 3. 상태가 바뀌면 `runtime.ts`가 이전 VDOM과 새 VDOM을 비교하고 patch를 적용합니다.
 4. `calculator.ts`는 갱신된 상태를 바탕으로 새로운 계산기 화면과 계산 내역을 다시 렌더링합니다.
 
-## 실행과 테스트
+### 테스트 구성
 
-```bash
-npm install
-npm test
-```
+- `test/calculator.test.mjs`는 계산기 순수 함수와 `Display`, `ButtonGrid`, `HistoryList`, `CalcButton` 같은 UI 컴포넌트의 VNode 구조를 검증합니다.
+- `test/demo.test.mjs`는 `setupDemo()` 기준으로 localStorage 복원, 잘못된 저장값 fallback, 최근 5개 history 유지, 숫자 입력과 계산 결과 반영까지 브라우저 흐름을 검증합니다.
+- `test/function-component.test.mjs`는 `FunctionComponent`의 mount/update 동작과 재렌더 시 DOM node identity 유지 여부를 검증합니다.
+- `test/runtime-hooks.test.mjs`는 hook slot 배정, `useEffect` 실행 조건과 순서, `useMemo` 캐시/재계산 규칙을 검증합니다.
+- `test/use-state.test.mjs`는 `useState`의 초기값 반환, setter 재사용, 렌더 바깥 호출 에러를 검증합니다.
 
 테스트는 TypeScript 빌드 후 계산기, demo, Hook 런타임, Diff/patch 동작을 함께 검증합니다.
