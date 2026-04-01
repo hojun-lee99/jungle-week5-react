@@ -9,6 +9,8 @@ export type RootRenderFn = () => VNode;
 // 현재 실행 중인 FunctionComponent를 전역 참조로 잠시 들고 있는다.
 let currentComponent: FunctionComponent | null = null;
 
+type EffectCallback = () => void;
+
 export class FunctionComponent {
   // 이후 useState, useMemo, useEffect가 값을 저장할 공용 hook 슬롯 배열이다.
   hooks: unknown[] = [];
@@ -18,6 +20,8 @@ export class FunctionComponent {
   private prevVNode: VNode | null = null;
   private readonly container: Element;
   private readonly renderFn: RootRenderFn;
+  // 이번 렌더에서 실행 대상으로 등록된 effect를 DOM 반영 뒤에 한 번에 실행한다.
+  private pendingEffects: EffectCallback[] = [];
 
   constructor(renderFn: RootRenderFn, container: Element) {
     this.renderFn = renderFn;
@@ -28,6 +32,8 @@ export class FunctionComponent {
   // renderFn을 실행해 다음 VDOM을 만든다.
   private renderVNode(): VNode {
     this.hookIndex = 0;
+    // 매 렌더마다 effect 실행 대기열을 새로 모은다.
+    this.pendingEffects = [];
     currentComponent = this;
 
     try {
@@ -44,6 +50,8 @@ export class FunctionComponent {
 
     mountVNode(this.container, nextVNode);
     this.prevVNode = nextVNode;
+    // effect는 화면이 실제 DOM에 반영된 뒤 실행한다.
+    this.flushEffects();
   }
 
   // 상태 변경 이후 재렌더링을 수행한다.
@@ -60,6 +68,22 @@ export class FunctionComponent {
 
     applyPatches(this.container, patches);
     this.prevVNode = nextVNode;
+    // update에서도 patch 적용이 끝난 뒤 effect를 실행한다.
+    this.flushEffects();
+  }
+
+  queueEffect(effect: EffectCallback): void {
+    this.pendingEffects.push(effect);
+  }
+
+  // effects에 담긴 작업들 실행
+  private flushEffects(): void {
+    const effects = this.pendingEffects;
+    this.pendingEffects = [];
+    // effect를 꺼내서 콜백함수 실행
+    for (const effect of effects) {
+      effect();
+    }
   }
 }
 
@@ -96,6 +120,38 @@ type StateHook<T> = {
   setState: (nextState: T) => void;
 };
 
+type MemoHook<T> = {
+  value: T;
+  deps?: readonly unknown[];
+};
+
+type EffectHook = {
+  // 이전 렌더의 dependency를 저장해 다음 렌더에서 재실행 여부를 판단한다.
+  deps?: readonly unknown[];
+};
+
+function areHookDepsEqual(
+  prevDeps: readonly unknown[] | undefined,
+  nextDeps: readonly unknown[] | undefined,
+): boolean {
+  // deps를 생략한 effect는 매 렌더 실행해야 하므로 같다고 보지 않는다.
+  if (prevDeps === undefined || nextDeps === undefined) {
+    return false;
+  }
+
+  if (prevDeps.length !== nextDeps.length) {
+    return false;
+  }
+
+  for (let index = 0; index < prevDeps.length; index += 1) {
+    if (!Object.is(prevDeps[index], nextDeps[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // 가장 단순한 형태의 useState다.
 // 슬롯이 비어 있으면 초기 상태와 고정 setter를 만들고, 이후 렌더에서는 같은 슬롯을 재사용한다.
 export function useState<T>(initialState: T): [T, (nextState: T) => void] {
@@ -121,4 +177,55 @@ export function useState<T>(initialState: T): [T, (nextState: T) => void] {
   }
 
   return [hook.value, hook.setState];
+}
+
+export function useMemo<T>(
+  factory: () => T,
+  deps?: readonly unknown[],
+): T {
+  const { component, index } = consumeHookSlot();
+  const hook = component.hooks[index] as MemoHook<T> | undefined;
+  const nextDeps = deps === undefined ? undefined : [...deps];
+
+  if (
+    hook === undefined ||
+    deps === undefined ||
+    !areHookDepsEqual(hook.deps, nextDeps)
+  ) {
+    const value = factory();
+
+    component.hooks[index] = {
+      value,
+      deps: nextDeps,
+    };
+
+    return value;
+  }
+
+  return hook.value;
+}
+
+// 매개변수로 콜백 함수랑 deps 전달
+export function useEffect(effect: () => void, deps?: readonly unknown[]): void {
+  const { component, index } = consumeHookSlot();
+  const hook = component.hooks[index] as EffectHook | undefined;
+  // 전달받은 deps 배열은 복사해 보관해 외부 변경 영향을 막는다.
+  const nextDeps = deps === undefined ? undefined : [...deps];
+  const shouldRun =
+    hook === undefined ||
+    deps === undefined ||
+    !areHookDepsEqual(hook.deps, nextDeps);
+
+  if (hook === undefined) {
+    component.hooks[index] = {
+      deps: nextDeps,
+    } satisfies EffectHook;
+  } else {
+    hook.deps = nextDeps;
+  }
+
+  if (shouldRun) {
+    // 렌더 중에는 바로 실행하지 않고 commit 이후 실행 큐에 넣는다.
+    component.queueEffect(effect);
+  }
 }

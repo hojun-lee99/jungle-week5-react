@@ -15,6 +15,7 @@ import {
   Display,
   ButtonGrid,
   CalcButton,
+  getExpression,
 } from '../dist/calculator.js';
 
 test('appendDigitToDisplay는 0을 대체하고 이후 숫자를 이어붙인다', () => {
@@ -116,9 +117,33 @@ test('applyClearToState는 전체 상태를 초기화한다', () => {
   });
 });
 
+test('getExpression은 저장된 값과 현재 display를 함께 표시한다', () => {
+  assert.equal(
+    getExpression({
+      display: '7',
+      storedValue: 12,
+      operator: '+',
+      waitingForNextValue: false,
+    }),
+    '12 + 7',
+  );
+});
+
+test('getExpression은 저장된 연산이 없으면 Ready를 반환한다', () => {
+  assert.equal(
+    getExpression({
+      display: '3',
+      storedValue: null,
+      operator: null,
+      waitingForNextValue: false,
+    }),
+    'Ready',
+  );
+});
+
 test('Display는 expression과 display를 표시하는 VNode를 만든다', () => {
   const vnode = Display({
-    expression: '12 +',
+    expression: '12 + 7',
     display: '7',
   });
 
@@ -133,7 +158,7 @@ test('Display는 expression과 display를 표시하는 VNode를 만든다', () =
   assert.equal(isElementNode(expression), true);
   assert.equal(expression.props['data-role'], 'expression');
   assert.equal(isTextNode(expression.children[0]), true);
-  assert.equal(expression.children[0].value, '12 +');
+  assert.equal(expression.children[0].value, '12 + 7');
 
   assert.equal(isElementNode(display), true);
   assert.equal(display.props['data-role'], 'display');

@@ -13,7 +13,7 @@ export { createElementNode, isElementNode } from './vdom/element-node.js';
 export { createDOMNodeFromVNode } from './vdom/dom.js';
 export { createVNodeFromElement } from './vdom/from-dom.js';
 export { createTextNode, isTextNode } from './vdom/text-node.js';
-export { FunctionComponent, useState } from './runtime.js';
+export { FunctionComponent, useEffect, useMemo, useState } from './runtime.js';
 export {
   applyPatches as applyContainerPatches,
   createDOMNodeFromVNode as createDomNodeFromVNode,

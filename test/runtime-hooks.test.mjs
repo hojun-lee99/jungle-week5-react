@@ -8,7 +8,13 @@ import {
   consumeHookSlot,
   getCurrentFunctionComponent,
 } from '../dist/runtime.js';
-import { createElementNode, createTextNode } from '../dist/index.js';
+import {
+  createElementNode,
+  createTextNode,
+  useEffect,
+  useMemo,
+  useState,
+} from '../dist/index.js';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
@@ -99,4 +105,199 @@ test('renderFn이 예외를 던져도 currentComponent는 정리된다', () => {
 
   assert.throws(() => component.mount(), /render failed/);
   assert.equal(getCurrentFunctionComponent(), null);
+});
+
+test('useEffect는 mount 직후 effect를 실행해 document.title을 갱신한다', () => {
+  document.title = 'before';
+  const container = dom.window.document.createElement('div');
+
+  const component = new FunctionComponent(() => {
+    const [count] = useState(0);
+
+    useEffect(() => {
+      document.title = `Count: ${count}`;
+    }, [count]);
+
+    return createElementNode('section', {
+      children: [createTextNode(String(count))],
+    });
+  }, container);
+
+  component.mount();
+
+  assert.equal(document.title, 'Count: 0');
+});
+
+test('useEffect는 dependency가 바뀌면 update 뒤 다시 실행된다', () => {
+  document.title = 'before';
+  const container = dom.window.document.createElement('div');
+  let capturedSetCount;
+
+  const component = new FunctionComponent(() => {
+    const [count, setCount] = useState(0);
+    capturedSetCount = setCount;
+
+    useEffect(() => {
+      document.title = `Count: ${count}`;
+    }, [count]);
+
+    return createElementNode('section', {
+      children: [createTextNode(String(count))],
+    });
+  }, container);
+
+  component.mount();
+  capturedSetCount(7);
+
+  assert.equal(document.title, 'Count: 7');
+});
+
+test('useEffect는 dependency가 같으면 다시 실행되지 않는다', () => {
+  const container = dom.window.document.createElement('div');
+  const effectRuns = [];
+  let capturedSetCount;
+
+  const component = new FunctionComponent(() => {
+    const [count, setCount] = useState(1);
+    capturedSetCount = setCount;
+
+    useEffect(() => {
+      effectRuns.push(count);
+    }, [count]);
+
+    return createElementNode('section', {
+      children: [createTextNode(String(count))],
+    });
+  }, container);
+
+  component.mount();
+  capturedSetCount(1);
+
+  assert.deepEqual(effectRuns, [1]);
+});
+
+test('여러 useEffect는 hook 호출 순서대로 실행된다', () => {
+  const container = dom.window.document.createElement('div');
+  const effectOrder = [];
+
+  const component = new FunctionComponent(() => {
+    useEffect(() => {
+      effectOrder.push('first');
+    }, []);
+
+    useEffect(() => {
+      effectOrder.push('second');
+    }, []);
+
+    return createElementNode('section', {
+      children: [createTextNode('effects')],
+    });
+  }, container);
+
+  component.mount();
+
+  assert.deepEqual(effectOrder, ['first', 'second']);
+});
+
+test('useMemo는 첫 렌더에서 factory를 실행하고 계산값을 반환한다', () => {
+  const container = dom.window.document.createElement('div');
+  let computeCount = 0;
+  const renderedValues = [];
+
+  const component = new FunctionComponent(() => {
+    const value = useMemo(() => {
+      computeCount += 1;
+      return `memo-${computeCount}`;
+    }, []);
+
+    renderedValues.push(value);
+
+    return createElementNode('section', {
+      children: [createTextNode(value)],
+    });
+  }, container);
+
+  component.mount();
+
+  assert.equal(computeCount, 1);
+  assert.deepEqual(renderedValues, ['memo-1']);
+  assert.equal(container.firstChild?.textContent, 'memo-1');
+});
+
+test('useMemo는 dependency가 같으면 cached value를 재사용한다', () => {
+  const container = dom.window.document.createElement('div');
+  let source = 12;
+  let computeCount = 0;
+  const renderedValues = [];
+
+  const component = new FunctionComponent(() => {
+    const value = useMemo(() => {
+      computeCount += 1;
+      return `${source} + ${source}`;
+    }, [source]);
+
+    renderedValues.push(value);
+
+    return createElementNode('section', {
+      children: [createTextNode(value)],
+    });
+  }, container);
+
+  component.mount();
+  component.update();
+
+  assert.equal(computeCount, 1);
+  assert.deepEqual(renderedValues, ['12 + 12', '12 + 12']);
+});
+
+test('useMemo는 dependency가 바뀌면 값을 다시 계산한다', () => {
+  const container = dom.window.document.createElement('div');
+  let source = 12;
+  let computeCount = 0;
+  const renderedValues = [];
+
+  const component = new FunctionComponent(() => {
+    const value = useMemo(() => {
+      computeCount += 1;
+      return `${source}`;
+    }, [source]);
+
+    renderedValues.push(value);
+
+    return createElementNode('section', {
+      children: [createTextNode(value)],
+    });
+  }, container);
+
+  component.mount();
+  source = 19;
+  component.update();
+
+  assert.equal(computeCount, 2);
+  assert.deepEqual(renderedValues, ['12', '19']);
+});
+
+test('useMemo는 deps를 생략하면 매 렌더마다 다시 계산한다', () => {
+  const container = dom.window.document.createElement('div');
+  let computeCount = 0;
+  const renderedValues = [];
+
+  const component = new FunctionComponent(() => {
+    const value = useMemo(() => {
+      computeCount += 1;
+      return `run-${computeCount}`;
+    });
+
+    renderedValues.push(value);
+
+    return createElementNode('section', {
+      children: [createTextNode(value)],
+    });
+  }, container);
+
+  component.mount();
+  component.update();
+
+  assert.equal(computeCount, 2);
+  assert.deepEqual(renderedValues, ['run-1', 'run-2']);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { JSDOM } from 'jsdom';
 
-test('setupDemo는 숫자 입력, 계산 결과, 초기화를 화면에 반영한다', async () => {
+test('setupDemo는 숫자 입력, 계산 결과, 초기화와 document.title 갱신을 반영한다', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="app"></div></body></html>');
 
   Object.assign(globalThis, {
@@ -45,43 +45,56 @@ test('setupDemo는 숫자 입력, 계산 결과, 초기화를 화면에 반영�
 
   assert.equal(display?.textContent, '0');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 0');
 
   digitOne?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   digitTwo?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   plus?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '12');
-  assert.equal(expression?.textContent, '12 +');
+  assert.equal(expression?.textContent, '12 + 12');
+  assert.equal(dom.window.document.title, 'Calculator: 12');
 
   digitSeven?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '7');
-  assert.equal(expression?.textContent, '12 +');
+  assert.equal(expression?.textContent, '12 + 7');
+  assert.equal(dom.window.document.title, 'Calculator: 7');
 
   equal?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '19');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 19');
 
   digitThree?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '3');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 3');
 
   multiply?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(expression?.textContent, '3 * 3');
   digitFour?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(expression?.textContent, '3 * 4');
   equal?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '12');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 12');
 
   clear?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '0');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 0');
 
   digitEight?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   divide?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(expression?.textContent, '8 / 8');
   digitZero?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(expression?.textContent, '8 / 0');
   equal?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '0');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 0');
 
   root?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   assert.equal(display?.textContent, '0');
   assert.equal(expression?.textContent, 'Ready');
+  assert.equal(dom.window.document.title, 'Calculator: 0');
 });

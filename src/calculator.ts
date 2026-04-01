@@ -1,4 +1,4 @@
-import { useState } from './runtime.js';
+import { useEffect, useMemo, useState } from './runtime.js';
 import { createElementNode } from './vdom/element-node.js';
 import type { VNode } from './vdom/node.js';
 import { createTextNode } from './vdom/text-node.js';
@@ -180,9 +180,16 @@ export function handleCalculatorClick(event: Event): void {
 
 export function App(): VNode {
   const [state, setState] = useState<CalculatorState>(INITIAL_CALCULATOR_STATE);
-  const expression = getExpression(state);
+  const expression = useMemo(
+    () => getExpression(state),
+    [state.storedValue, state.operator, state.display],
+  );
   const display = state.display;
   const buttons = BUTTON_LAYOUT;
+
+  useEffect(() => {
+    document.title = `Calculator: ${state.display}`;
+  }, [state.display]);
 
   latestState = state;
   latestSetState = setState;
@@ -266,5 +273,5 @@ export function getExpression(state: CalculatorState): string {
     return 'Ready';
   }
 
-  return `${state.storedValue} ${state.operator}`;
+  return `${state.storedValue} ${state.operator} ${state.display}`;
 }
