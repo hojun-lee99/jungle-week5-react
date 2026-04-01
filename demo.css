@@ -112,9 +112,9 @@ button {
   letter-spacing: -0.05em;
 }
 
-.button-grid {
+.digit-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -153,8 +153,8 @@ button {
   background: var(--button-operator);
 }
 
-.calc-button-wide {
-  grid-column: span 2;
+.digit-button-zero {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 520px) {
@@ -167,7 +167,7 @@ button {
     border-radius: 26px;
   }
 
-  .button-grid {
+  .digit-grid {
     gap: 10px;
   }
 
